@@ -1,0 +1,277 @@
+import java.util.*;
+
+// Define BookRequest as a top-level class
+class BookRequest {
+    private String bookTitle;
+    private double price;
+
+    public BookRequest(String bookTitle, double price) {
+        this.bookTitle = bookTitle;
+        this.price = price;
+    }
+
+    public String getBookTitle() { return bookTitle; }
+    public double getPrice() { return price; }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        OfferEvaluationStrategy evaluationStrategy = new LowestPriceEvaluationStrategy();
+
+        List<BookBuyerAgent> buyers = new ArrayList<>();
+        buyers.add(new BookBuyerAgent("Thomas", evaluationStrategy));
+
+        List<BookSellerAgent> sellers = new ArrayList<>();
+        BookSellerAgent seller1 = new BookSellerAgent("Seller 1");
+        seller1.addBookToCatalog("Bull and Bear", 20.0, buyers, sellers);
+        seller1.addBookToCatalog("Whispers of Romance", 10.0, buyers, sellers);
+        seller1.addBookToCatalog("Eras of Elegance", 5.0, buyers, sellers);
+        seller1.addBookToCatalog("Ripples of My Past", 18.0, buyers, sellers);
+        seller1.addBookToCatalog("Juliet's Secret", 45.0, buyers, sellers);
+
+        BookSellerAgent seller2 = new BookSellerAgent("Seller 2");
+        seller2.addBookToCatalog("Bull and Bear", 18.0, buyers, sellers);
+        seller2.addBookToCatalog("Eras of Elegance", 9.0, buyers, sellers);
+        seller2.addBookToCatalog("Juliet's Secret", 32.0, buyers, sellers);
+        seller2.addBookToCatalog("Intelligent Investor", 30.0, buyers, sellers);
+        seller2.addBookToCatalog("Why Has Nobody Ever Told Me This", 20.0, buyers, sellers);
+
+        sellers.add(seller1);
+        sellers.add(seller2);
+
+        BookBuyerAgent buyer = new BookBuyerAgent("Thomas", evaluationStrategy);
+        Random random = new Random();
+        Queue<BookRequest> bookRequestQueue = new LinkedList<>();
+        int iterationCounter = 0;
+
+        buyers.add(buyer);
+
+        while (true) {
+            System.out.println(buyer.getName() + ", enter the title of the book you want to buy (type 'exit' to finish):");
+            String bookTitle = scanner.nextLine().trim();
+            if ("exit".equalsIgnoreCase(bookTitle)) {
+                break;
+            }
+
+            boolean found = buyer.sendBroadcastRequest(sellers, bookTitle);
+
+            if (!found) {
+                System.out.println("The book is not available from any seller. Would you like to request it? (yes/no)");
+                String answer = scanner.nextLine().trim();
+                if ("yes".equalsIgnoreCase(answer)) {
+                    System.out.println("Enter the price for the book:");
+                    double price;
+                    try {
+                        price = Double.parseDouble(scanner.nextLine().trim());
+                        bookRequestQueue.offer(new BookRequest(bookTitle, price));
+                        System.out.println("Book request for '" + bookTitle + "' has been queued.");
+                    } catch (NumberFormatException e) {
+                        System.out.println("Invalid price. The book was not requested.");
+                    }
+                }
+            }
+
+            if (iterationCounter % 5 == 0 && !bookRequestQueue.isEmpty()) {
+                BookRequest request = bookRequestQueue.poll();
+                int randomIndex = random.nextInt(sellers.size());
+                BookSellerAgent selectedSeller = sellers.get(randomIndex);
+                selectedSeller.addBookToCatalog(request.getBookTitle(), request.getPrice(), buyers, sellers);
+                System.out.println("Book '" + request.getBookTitle() + "' now available at " + selectedSeller.getName());
+            }
+
+            iterationCounter++;
+        }
+
+        buyer.printBooksPurchased();
+        scanner.close();
+    }
+}
+
+interface OfferEvaluationStrategy {
+    Offer evaluate(List<Offer> offers);
+}
+
+class LowestPriceEvaluationStrategy implements OfferEvaluationStrategy {
+    @Override
+    public Offer evaluate(List<Offer> offers) {
+        return offers.stream()
+                     .min(Comparator.comparingDouble(Offer::getPrice))
+                     .orElseThrow(() -> new IllegalArgumentException("No offers provided"));
+    }
+}
+
+class BookBuyerAgent {
+    private String name;
+    private List<Book> purchasedBooks = new ArrayList<>();
+    private OfferEvaluationStrategy evaluationStrategy;
+    private Map<String, Double> wishList = new HashMap<>();
+
+    public BookBuyerAgent(String name, OfferEvaluationStrategy strategy) {
+        this.name = name;
+        this.evaluationStrategy = strategy;
+    }
+
+    public String getName() {
+        return name;
+    }
+    public void addToWishList(String bookTitle, double price) {
+        wishList.put(bookTitle, price);
+    }
+
+    public boolean isBookInWishList(String bookTitle) {
+        return wishList.containsKey(bookTitle);
+    }
+
+    public void onBookAvailable(String bookTitle, double price, List<BookSellerAgent> sellers) {
+        if (wishList.containsKey(bookTitle) && wishList.get(bookTitle) >= price) {
+            System.out.println(name + ": The book '" + bookTitle + "' from my wish list is available for $" + price);
+
+            // Directly purchase the book
+            purchaseBook(bookTitle, price);
+            wishList.remove(bookTitle); // Remove the book from the wish list after purchase
+        }
+    }
+
+    private void purchaseBook(String bookTitle, double price) {
+        purchasedBooks.add(new Book(bookTitle, price));
+        System.out.println(name + " automatically purchased " + bookTitle + " for $" + price);
+    }
+
+    // Method to print books purchased by the buyer
+    public void printBooksPurchased() {
+        System.out.println(name + " purchased the following books:");
+        for (Book book : purchasedBooks) {
+            System.out.println(book.getTitle() + " for $" + book.getPrice());
+        }
+    }
+
+    public boolean sendBroadcastRequest(List<BookSellerAgent> sellers, String bookTitle) {
+        List<Offer> offers = new ArrayList<>();
+
+        for (BookSellerAgent seller : sellers) {
+            Response response = seller.receiveRequest(new Request(bookTitle));
+            if (response.getType() == ResponseType.OFFER) {
+                offers.add(new Offer(response.getBookTitle(), response.getPrice()));
+            }
+        }
+
+        if (!offers.isEmpty()) {
+            Offer bestOffer = evaluationStrategy.evaluate(offers);
+            purchaseBook(bestOffer.getBookTitle(), bestOffer.getPrice());
+            return true;
+        }
+
+        return false;
+    }
+}
+
+class BookSellerAgent {
+    private String name;
+    private List<Book> catalog = new ArrayList<>();
+
+    public BookSellerAgent(String name) {
+        this.name = name;
+    }
+
+    public void addBookToCatalog(String title, double price, List<BookBuyerAgent> buyers, List<BookSellerAgent> sellers) {
+        catalog.add(new Book(title, price));
+        System.out.println(name + " added " + title + " at price $" + price);
+
+        // Check if the book is in any buyer's wish list
+        for (BookBuyerAgent buyer : buyers) {
+            if (buyer.isBookInWishList(title)) {
+                buyer.onBookAvailable(title, price, sellers);
+            }
+        }
+    }
+
+    public Response receiveRequest(Request request) {
+        for (Book book : catalog) {
+            if (book.getTitle().equalsIgnoreCase(request.getBookTitle())) {
+                return new Response(ResponseType.OFFER, book.getTitle(), book.getPrice());
+            }
+        }
+        return new Response(ResponseType.REFUSAL, "Sorry, I do not have this book for sale", 0);
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
+class Book {
+    private String title;
+    private double price;
+
+    public Book(String title, double price) {
+        this.title = title;
+        this.price = price;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+}
+
+class Offer {
+    private String bookTitle;
+    private double price;
+
+    public Offer(String bookTitle, double price) {
+        this.bookTitle = bookTitle;
+        this.price = price;
+    }
+
+    public String getBookTitle() {
+        return bookTitle;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+}
+
+class Request {
+    private String bookTitle;
+
+    public Request(String bookTitle) {
+        this.bookTitle = bookTitle;
+    }
+
+    public String getBookTitle() {
+        return bookTitle;
+    }
+}
+
+enum ResponseType {
+    OFFER, REFUSAL
+}
+
+class Response {
+    private ResponseType type;
+    private String bookTitle;
+    private double price;
+
+    public Response(ResponseType type, String bookTitle, double price) {
+        this.type = type;
+        this.bookTitle = bookTitle;
+        this.price = price;
+    }
+
+    public ResponseType getType() {
+        return type;
+    }
+
+    public String getBookTitle() {
+        return bookTitle;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+}
