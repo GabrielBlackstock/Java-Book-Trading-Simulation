@@ -1,0 +1,48 @@
+# Book Buyer and Seller Simulation
+
+This project simulates a basic book marketplace with buyers and sellers. Buyers can request books, and sellers can list books for sale. The simulation includes a simple offer evaluation strategy based on the lowest price.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Classes and Interfaces](#classes-and-interfaces)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+The project simulates interactions between book buyers and sellers. Buyers can request books, and if no seller has the requested book, the buyer can choose to add it to a request queue. Sellers can fulfill these requests by adding the books to their catalog.
+
+## Features
+
+- **Book Requests**: Buyers can request specific books.
+- **Automatic Purchase**: If a book from a buyer's wish list becomes available at or below the desired price, it is automatically purchased.
+- **Randomized Seller Selection**: New book requests are randomly assigned to sellers.
+
+
+## Classes and Interfaces
+
+### Main Classes
+
+- **BookRequest**: Represents a request for a book with a specific title and price.
+- **Main**: The entry point of the application, handling user input and simulation flow.
+- **BookBuyerAgent**: Represents a buyer agent that can request and purchase books.
+- **BookSellerAgent**: Represents a seller agent that has a catalog of books for sale.
+
+### Interfaces
+
+- **OfferEvaluationStrategy**: Defines a strategy for evaluating offers. Currently, the `LowestPriceEvaluationStrategy` implementation is used.
+
+### Supporting Classes
+
+- **Book**: Represents a book with a title and price.
+- **Offer**: Represents an offer for a book from a seller.
+- **Request**: Represents a request for a book.
+- **Response**: Represents a response to a book request, indicating availability and price.
+
+### Enums
+
+- **ResponseType**: Defines the types of responses (`OFFER` or `REFUSAL`).
